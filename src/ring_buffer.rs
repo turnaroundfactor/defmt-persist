@@ -440,6 +440,32 @@ impl Consumer<'_> {
         })
         .await
     }
+
+    #[cfg(feature = "async-await")]
+    /// Waits until there is at least the requested amount of data in the [`Consumer`].
+    pub async fn wait_for_data_size(&mut self, size: usize) {
+        core::future::poll_fn(|cx| {
+            super::logger::WAKER.register(cx.waker());
+
+            // Acquire: synchronizes with producer's Release store, ensuring we see the written data.
+            let write = self.header.write.load(Ordering::Acquire) as usize;
+            // Relaxed: consumer owns `read`, no cross-thread synchronization needed.
+            let read = self.header.read.load(Ordering::Relaxed) as usize;
+            let buf: *mut u8 = self.buf.as_ptr().cast_mut().cast();
+            let buffer_size = if write < read {
+                self.buf.len() - read + write
+            } else {
+                write - read
+            };
+            if buffer_size < size {
+                core::task::Poll::Pending
+            } else {
+                core::task::Poll::Ready(())
+            }
+        })
+        .await
+    }
+}
 }
 
 /// A read grant providing access to buffered data.
