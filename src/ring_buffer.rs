@@ -466,7 +466,6 @@ impl Consumer<'_> {
         .await
     }
 }
-}
 
 /// A read grant providing access to buffered data.
 ///
